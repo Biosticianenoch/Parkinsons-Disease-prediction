@@ -139,7 +139,7 @@ This project is licensed under the **MIT License**.
 
 ## 👨‍💻 Author
 
-**Enoch Osenwafulah**
+**Enock Bereka**
 📧 [enochosenwafulah@gmail.com](mailto:enochosenwafulah@gmail.com)
 
 ---
@@ -152,7 +152,6 @@ Contributions, issues, and feature requests are welcome!
 
 ### 🚧 Future Plans
 
-* 🌍 Deploy to Streamlit Cloud
 * 📱 Build a mobile-friendly version
 * 🔔 Add email notifications for predictions
 
