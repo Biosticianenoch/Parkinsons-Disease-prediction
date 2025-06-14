@@ -4,26 +4,44 @@ import os
 import numpy as np
 import pandas as pd
 from datetime import datetime
+from uuid import uuid4
 from streamlit_option_menu import option_menu
 
 # ---- Load Model ---- #
 parkinsons_model = pickle.load(open("parkinsons_model.sav", 'rb'))
 
-# ---- CSV Log Setup ---- #
-LOG_FILE = "prediction_logs.csv"
+# ---- CSV Log Files ---- #
+PREDICTION_LOG_FILE = "prediction_logs.csv"
+VISITOR_LOG_FILE = "visitor_logs.csv"
 
-if not os.path.exists(LOG_FILE):
-    df_log = pd.DataFrame(columns=["Timestamp", "Result"])
-    df_log.to_csv(LOG_FILE, index=False)
+# Initialize prediction log
+if not os.path.exists(PREDICTION_LOG_FILE):
+    pd.DataFrame(columns=["Timestamp", "Result"]).to_csv(PREDICTION_LOG_FILE, index=False)
 
+# Initialize visitor log
+if not os.path.exists(VISITOR_LOG_FILE):
+    pd.DataFrame(columns=["VisitorID", "Timestamp"]).to_csv(VISITOR_LOG_FILE, index=False)
+
+# ---- Visitor Tracking ---- #
+if "visitor_id" not in st.session_state:
+    st.session_state.visitor_id = str(uuid4())  # generate unique session ID
+    new_visitor = pd.DataFrame({
+        "VisitorID": [st.session_state.visitor_id],
+        "Timestamp": [datetime.now().strftime("%Y-%m-%d %H:%M:%S")]
+    })
+    df_visitors = pd.read_csv(VISITOR_LOG_FILE)
+    df_visitors = pd.concat([df_visitors, new_visitor], ignore_index=True)
+    df_visitors.to_csv(VISITOR_LOG_FILE, index=False)
+
+# ---- Function to Log Predictions ---- #
 def log_prediction(result):
-    df_log = pd.read_csv(LOG_FILE)
+    df_log = pd.read_csv(PREDICTION_LOG_FILE)
     new_entry = pd.DataFrame({
         "Timestamp": [datetime.now().strftime("%Y-%m-%d %H:%M:%S")],
         "Result": [result]
     })
     df_log = pd.concat([df_log, new_entry], ignore_index=True)
-    df_log.to_csv(LOG_FILE, index=False)
+    df_log.to_csv(PREDICTION_LOG_FILE, index=False)
 
 # ---- Sidebar Navigation ---- #
 with st.sidebar:
@@ -36,9 +54,7 @@ with st.sidebar:
         orientation="vertical"
     )
 
-# ---- Pages ---- #
-
-# 1. Welcome Page
+# ---- Page: Welcome ---- #
 if selected == "Welcome":
     st.title("Welcome to the Parkinson's Disease Detection App")
     st.write("""
@@ -54,7 +70,7 @@ if selected == "Welcome":
         ➡ Use the sidebar to navigate to the *Prediction* page to get started!
     """)
 
-# 2. Prediction Page
+# ---- Page: Prediction ---- #
 elif selected == "Prediction":
     st.title("Parkinson's Disease Prediction")
 
@@ -128,7 +144,7 @@ elif selected == "Prediction":
 
         log_prediction(diagnosis)
 
-# 3. Recommendations Page
+# ---- Page: Recommendations ---- #
 elif selected == "Recommendations":
     st.title("Health Recommendations")
     st.write("""
@@ -143,7 +159,7 @@ elif selected == "Recommendations":
     These recommendations are general. Always consult your doctor for personalized advice.
     """)
 
-# 4. FAQs Page
+# ---- Page: FAQs ---- #
 elif selected == "FAQs":
     st.title("Frequently Asked Questions (FAQs)")
 
@@ -159,24 +175,26 @@ elif selected == "FAQs":
     with st.expander("🏥 Should I rely solely on this result?"):
         st.write("No. This is a supportive tool — consult a certified neurologist for confirmation.")
 
-# 5. Analytics Page
+# ---- Page: Analytics ---- #
 elif selected == "Analytics":
     st.title("App Usage Analytics")
 
-    df_log = pd.read_csv(LOG_FILE)
+    df_log = pd.read_csv(PREDICTION_LOG_FILE)
+    df_visitors = pd.read_csv(VISITOR_LOG_FILE)
+
     st.write("### Total Predictions Made:", len(df_log))
+    st.write("### Total Unique Visitors:", df_visitors['VisitorID'].nunique())
 
     st.write("### Recent Predictions:")
     st.dataframe(df_log.tail(10))
 
-    result_counts = df_log["Result"].value_counts()
     st.write("### Prediction Summary:")
-    st.bar_chart(result_counts)
+    st.bar_chart(df_log["Result"].value_counts())
 
-    st.write("### Full Log Data:")
-    st.dataframe(df_log)
+    st.write("### Visitor Log Sample:")
+    st.dataframe(df_visitors.tail(10))
 
-# 6. Support & Donate Page
+# ---- Page: Support & Donate ---- #
 elif selected == "Support & Donate":
     st.title("Support & Donate 💖")
     st.write("""
@@ -198,8 +216,8 @@ elif selected == "Support & Donate":
     st.subheader("💼 Bank Transfer Details")
     st.write("""
     - *Bank Name*: KCB Bank (Only for Kenyans)  
-    - *Account Name*: DATAQUEST SOLUTIONS
-    - *Paybill*: 522522
+    - *Account Name*: DATAQUEST SOLUTIONS  
+    - *Paybill*: 522522  
     - *Account Number*: 1340849054  
     - *SWIFT Code*: KCBLKENX
     """)
