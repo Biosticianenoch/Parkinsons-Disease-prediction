@@ -1,226 +1,103 @@
 import pickle
-import streamlit as st
 import os
 import numpy as np
-import pandas as pd
-from datetime import datetime
-from uuid import uuid4
+import streamlit as st
 from streamlit_option_menu import option_menu
+import datetime
 
-# ---- Load Model ---- #
+# ---------------- CONFIG ----------------
+st.set_page_config(page_title="Parkinson's Disease Screening Tool", layout="centered")
+
+# ---------------- VISITOR COUNTER ----------------
+counter_file = "visitor_data.pkl"
+
+# Load or initialize visitor data
+if os.path.exists(counter_file):
+    with open(counter_file, 'rb') as f:
+        visitor_data = pickle.load(f)
+else:
+    visitor_data = {
+        'count': 0,
+        'timestamps': []
+    }
+
+if 'counted' not in st.session_state:
+    st.session_state['counted'] = True
+    visitor_data['count'] += 1
+    visitor_data['timestamps'].append(str(datetime.datetime.now()))
+    with open(counter_file, 'wb') as f:
+        pickle.dump(visitor_data, f)
+
+# ---------------- LOAD MODEL ----------------
 parkinsons_model = pickle.load(open("parkinsons_model.sav", 'rb'))
 
-# ---- CSV Log Files ---- #
-PREDICTION_LOG_FILE = "prediction_logs.csv"
-VISITOR_LOG_FILE = "visitor_logs.csv"
-
-# Initialize prediction log
-if not os.path.exists(PREDICTION_LOG_FILE):
-    pd.DataFrame(columns=["Timestamp", "Result"]).to_csv(PREDICTION_LOG_FILE, index=False)
-
-# Initialize visitor log
-if not os.path.exists(VISITOR_LOG_FILE):
-    pd.DataFrame(columns=["VisitorID", "Timestamp"]).to_csv(VISITOR_LOG_FILE, index=False)
-
-# ---- Visitor Tracking ---- #
-if "visitor_id" not in st.session_state:
-    st.session_state.visitor_id = str(uuid4())  # generate unique session ID
-    new_visitor = pd.DataFrame({
-        "VisitorID": [st.session_state.visitor_id],
-        "Timestamp": [datetime.now().strftime("%Y-%m-%d %H:%M:%S")]
-    })
-    df_visitors = pd.read_csv(VISITOR_LOG_FILE)
-    df_visitors = pd.concat([df_visitors, new_visitor], ignore_index=True)
-    df_visitors.to_csv(VISITOR_LOG_FILE, index=False)
-
-# ---- Function to Log Predictions ---- #
-def log_prediction(result):
-    df_log = pd.read_csv(PREDICTION_LOG_FILE)
-    new_entry = pd.DataFrame({
-        "Timestamp": [datetime.now().strftime("%Y-%m-%d %H:%M:%S")],
-        "Result": [result]
-    })
-    df_log = pd.concat([df_log, new_entry], ignore_index=True)
-    df_log.to_csv(PREDICTION_LOG_FILE, index=False)
-
-# ---- Sidebar Navigation ---- #
+# ---------------- SIDEBAR MENU ----------------
 with st.sidebar:
-    selected = option_menu(
-        menu_title="Parkinson's App Menu",
-        options=["Welcome", "Prediction", "Recommendations", "FAQs", "Analytics", "Support & Donate"],
-        icons=["house", "activity", "lightbulb", "question-circle", "bar-chart", "credit-card"],
-        menu_icon="cast",
-        default_index=0,
-        orientation="vertical"
-    )
+    selected = option_menu("Main Menu", 
+                           ["Welcome", "Prediction", "Analytics"], 
+                           icons=['house', 'activity', 'bar-chart'],
+                           menu_icon="cast", default_index=0)
 
-# ---- Page: Welcome ---- #
+# ---------------- WELCOME PAGE ----------------
 if selected == "Welcome":
-    st.title("Welcome to the Parkinson's Disease Detection App")
-    st.write("""
-        This application predicts the likelihood of Parkinson's Disease based on biomedical voice measurements.
-        
-        *Features:*
-        - Accurate Parkinson's Disease Prediction
-        - Personalized Health Recommendations
-        - Frequently Asked Questions (FAQs)
-        - Real-Time Usage Analytics
-        - Option to Support the Developer
+    st.markdown("<h1 style='text-align: center; color: green;'>🧠 Parkinson's Disease Screening App</h1>", unsafe_allow_html=True)
+    st.image("https://media.giphy.com/media/5GoVLqeAOo6PK/giphy.gif", use_column_width=True)
 
-        ➡ Use the sidebar to navigate to the *Prediction* page to get started!
+    st.success(f"🌟 **Total Visitors:** {visitor_data['count']}")
+
+    st.write("""
+    **This tool helps in identifying early signs of Parkinson's Disease based on biomedical voice features.**
+
+    ✅ AI-Powered Risk Estimation  
+    ✅ Designed for Remote Settings  
+    ✅ Empowers Clinical Decision-Making
+
+    👉 Use the sidebar to get started!
     """)
 
-# ---- Page: Prediction ---- #
+# ---------------- PREDICTION PAGE ----------------
 elif selected == "Prediction":
-    st.title("Parkinson's Disease Prediction")
+    st.markdown("<h2 style='text-align: center;'>🎙️ Parkinson's Disease Prediction</h2>", unsafe_allow_html=True)
+    st.write("Fill in the biomedical voice features below:")
 
-    col1, col2, col3, col4, col5 = st.columns(5)
+    with st.form("prediction_form"):
+        jitter = st.number_input("Jitter (%)", min_value=0.0, format="%.5f")
+        shimmer = st.number_input("Shimmer (dB)", min_value=0.0, format="%.5f")
+        fo = st.number_input("Average Fundamental Frequency (Hz)", min_value=0.0)
+        hnr = st.number_input("Harmonics-to-Noise Ratio (HNR)", min_value=0.0)
+        spread1 = st.number_input("Spread1", min_value=-10.0, max_value=0.0, format="%.5f")
+        spread2 = st.number_input("Spread2", min_value=0.0, format="%.5f")
+        d2 = st.number_input("D2", min_value=0.0, format="%.5f")
+        rpde = st.number_input("Recurrence Period Density Entropy (RPDE)", min_value=0.0, max_value=1.0, format="%.5f")
+        DFA = st.number_input("Detrended Fluctuation Analysis (DFA)", min_value=0.0, max_value=2.0, format="%.5f")
 
-    with col1:
-        avg_fundamental_freq = st.number_input('Average vocal fundamental frequency (Hz)', value=0.0)
-    with col2:
-        max_fundamental_freq = st.number_input('Maximum vocal fundamental frequency (Hz)', value=0.0)
-    with col3:
-        min_fundamental_freq = st.number_input('Minimum vocal fundamental frequency (Hz)', value=0.0)
-    with col4:
-        jitter_percent = st.number_input('MDVP:Jitter (%)', value=0.0)
-    with col5:
-        jitter_abs = st.number_input('MDVP:Jitter (Abs)', value=0.0)
+        submitted = st.form_submit_button("Predict Parkinson's Disease")
 
-    with col1:
-        rap = st.number_input('MDVP:RAP', value=0.0)
-    with col2:
-        ppq = st.number_input('MDVP:PPQ', value=0.0)
-    with col3:
-        ddp = st.number_input('Jitter:DDP', value=0.0)
-    with col4:
-        shimmer = st.number_input('MDVP:Shimmer', value=0.0)
-    with col5:
-        shimmer_db = st.number_input('MDVP:Shimmer (dB)', value=0.0)
+    if submitted:
+        input_data = [fo, jitter, shimmer, hnr, rpde, DFA, spread1, spread2, d2]
+        input_array = np.array(input_data).reshape(1, -1)
+        prediction = parkinsons_model.predict(input_array)[0]
+        probability = parkinsons_model.predict_proba(input_array)[0][1] * 100
 
-    with col1:
-        apq3 = st.number_input('Shimmer:APQ3', value=0.0)
-    with col2:
-        apq5 = st.number_input('Shimmer:APQ5', value=0.0)
-    with col3:
-        apq = st.number_input('MDVP:APQ', value=0.0)
-    with col4:
-        dda = st.number_input('Shimmer:DDA', value=0.0)
-    with col5:
-        nhr = st.number_input('Noise-to-Harmonics Ratio (NHR)', value=0.0)
-
-    with col1:
-        hnr = st.number_input('Harmonics-to-Noise Ratio (HNR)', value=0.0)
-    with col2:
-        rpde = st.number_input('Recurrence Period Density Entropy (RPDE)', value=0.0)
-    with col3:
-        dfa = st.number_input('Detrended Fluctuation Analysis (DFA)', value=0.0)
-    with col4:
-        spread1 = st.number_input('Spread1', value=0.0)
-    with col5:
-        spread2 = st.number_input('Spread2', value=0.0)
-
-    with col1:
-        d2 = st.number_input('D2 (Correlation Dimension)', value=0.0)
-    with col2:
-        ppe = st.number_input('Pitch Period Entropy (PPE)', value=0.0)
-
-    if st.button("Get Parkinson's Test Result"):
-        user_input = [
-            avg_fundamental_freq, max_fundamental_freq, min_fundamental_freq,
-            jitter_percent, jitter_abs, rap, ppq, ddp,
-            shimmer, shimmer_db, apq3, apq5, apq, dda,
-            nhr, hnr, rpde, dfa, spread1, spread2, d2, ppe
-        ]
-        user_input = np.asarray(user_input).reshape(1, -1)
-        prediction = parkinsons_model.predict(user_input)
-
-        if prediction[0] == 1:
-            diagnosis = "The person has Parkinson's disease"
-            st.error(diagnosis)
+        if prediction == 1:
+            st.error(f"🚨 The person is **likely** to have Parkinson's Disease.\n\n🧠 Prediction Confidence: {probability:.2f}%")
         else:
-            diagnosis = "The person does not have Parkinson's disease"
-            st.success(diagnosis)
+            st.success(f"✅ The person is **unlikely** to have Parkinson's Disease.\n\n🧠 Prediction Confidence: {probability:.2f}%")
 
-        log_prediction(diagnosis)
-
-# ---- Page: Recommendations ---- #
-elif selected == "Recommendations":
-    st.title("Health Recommendations")
-    st.write("""
-    Based on Parkinson's disease risk, here are some general health tips:
-
-    - *Consult a Neurologist*: For clinical evaluation and further testing.
-    - *Voice Therapy*: To improve speech difficulties associated with Parkinson's.
-    - *Physical Exercise*: Engage in yoga, tai chi, or balance training.
-    - *Nutritious Diet*: Eat fresh fruits, vegetables, and omega-3 fatty acids.
-    - *Medication Adherence*: If prescribed by a healthcare provider.
-
-    These recommendations are general. Always consult your doctor for personalized advice.
-    """)
-
-# ---- Page: FAQs ---- #
-elif selected == "FAQs":
-    st.title("Frequently Asked Questions (FAQs)")
-
-    with st.expander("❓ What is Parkinson's Disease?"):
-        st.write("Parkinson's disease is a long-term degenerative disorder of the central nervous system affecting movement.")
-
-    with st.expander("🤔 How accurate is this app?"):
-        st.write("This app uses a machine learning model trained on biomedical data. It's not a substitute for professional medical diagnosis.")
-
-    with st.expander("⚙ What data is used?"):
-        st.write("The app uses 22 biomedical voice measurements including jitter, shimmer, fundamental frequencies, and entropy measures.")
-
-    with st.expander("🏥 Should I rely solely on this result?"):
-        st.write("No. This is a supportive tool — consult a certified neurologist for confirmation.")
-
-# ---- Page: Analytics ---- #
+# ---------------- ANALYTICS PAGE ----------------
 elif selected == "Analytics":
-    st.title("App Usage Analytics")
+    st.markdown("<h2 style='text-align: center;'>📊 Visitor Analytics</h2>", unsafe_allow_html=True)
 
-    df_log = pd.read_csv(PREDICTION_LOG_FILE)
-    df_visitors = pd.read_csv(VISITOR_LOG_FILE)
+    st.info(f"🧑‍💻 **Total Visitors:** {visitor_data['count']}")
 
-    st.write("### Total Predictions Made:", len(df_log))
-    st.write("### Total Unique Visitors:", df_visitors['VisitorID'].nunique())
+    if len(visitor_data['timestamps']) > 0:
+        st.write("### 🕒 **Visitor Log (Timestamps):**")
+        st.dataframe(visitor_data['timestamps'])
 
-    st.write("### Recent Predictions:")
-    st.dataframe(df_log.tail(10))
+    if st.button("🔄 Reset Visitor Counter"):
+        visitor_data = {'count': 0, 'timestamps': []}
+        with open(counter_file, 'wb') as f:
+            pickle.dump(visitor_data, f)
+        st.success("Visitor counter has been reset. Please refresh to see the update.")
 
-    st.write("### Prediction Summary:")
-    st.bar_chart(df_log["Result"].value_counts())
-
-    st.write("### Visitor Log Sample:")
-    st.dataframe(df_visitors.tail(10))
-
-# ---- Page: Support & Donate ---- #
-elif selected == "Support & Donate":
-    st.title("Support & Donate 💖")
-    st.write("""
-    If you find this Parkinson's Detection App valuable, please consider supporting its development!
-
-    Your contribution helps maintain and improve this free tool for everyone.
-    """)
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.subheader("💳 Donate via PayPal")
-        st.write("dataquestsolutions2@gmail.com")
-
-    with col2:
-        st.subheader("☕ Donate via Mpesa/MTN")
-        st.write("+25401344230")
-
-    st.subheader("💼 Bank Transfer Details")
-    st.write("""
-    - *Bank Name*: KCB Bank (Only for Kenyans)  
-    - *Account Name*: DATAQUEST SOLUTIONS  
-    - *Paybill*: 522522  
-    - *Account Number*: 1340849054  
-    - *SWIFT Code*: KCBLKENX
-    """)
-
-    st.subheader("📧 Contact for Support")
-    st.write("Email: enochosenwafulah@gmail.com")
+    st.write("⚠️ **Note:** This data is stored locally in `visitor_data.pkl`. No external tracking is used.")
